@@ -233,11 +233,11 @@ classDiagram
     Merchant ||--o{ MerchantRating : "receives"
 
     Payment ||--|| Transaction : "creates"
-    Payment ||--o| FraudAnalysis : "analyzed by"
+    Payment ||--|| FraudAnalysis : "analyzed by"
     Payment ||--o{ Notification : "triggers"
-    Payment ||--o| CashbackTransaction : "eligible for"
+    Payment ||--|| CashbackTransaction : "eligible for"
 
-    QRCode ||--o| Payment : "initiates"
+    QRCode ||--|| Payment : "initiates"
 
     FraudRule ||--o{ FraudAnalysis : "applied in"
 

@@ -1,10 +1,19 @@
-const { FraudCheck, FraudRule, CustomerRiskProfile, FraudAlert } = require('../models');
-const { createLogger, FRAUD_DECISIONS, RISK_LEVELS } = require('../../../shared/utils');
-const { Op } = require('sequelize');
+const {
+  FraudCheck,
+  FraudRule,
+  CustomerRiskProfile,
+  FraudAlert,
+} = require("../models");
+const {
+  createLogger,
+  FRAUD_DECISIONS,
+  RISK_LEVELS,
+} = require("../../../shared/utils");
+const { Op } = require("sequelize");
 
 class FraudService {
   constructor() {
-    this.logger = createLogger('fraud-service');
+    this.logger = createLogger("fraud-service");
   }
 
   /**
@@ -17,14 +26,16 @@ class FraudService {
         customerId,
         merchantId,
         amount,
-        currency = 'USD',
+        currency = "USD",
         method,
         location,
         deviceInfo,
-        timestamp = new Date()
+        timestamp = new Date(),
       } = transactionData;
 
-      this.logger.info(`Starting fraud check for payment ${paymentId}, customer ${customerId}, amount ${amount}`);
+      this.logger.info(
+        `Starting fraud check for payment ${paymentId}, customer ${customerId}, amount ${amount}`,
+      );
 
       // Get customer risk profile
       let riskProfile = await this.getCustomerRiskProfile(customerId);
@@ -46,17 +57,17 @@ class FraudService {
           amount,
           currency,
           riskScore: 100,
-          riskLevel: 'CRITICAL',
-          decision: 'BLOCK',
+          riskLevel: "CRITICAL",
+          decision: "BLOCK",
           reason: `Customer is blacklisted: ${riskProfile.blacklistReason}`,
-          rulesFired: [{ rule: 'BLACKLIST_CHECK', triggered: true }]
+          rulesFired: [{ rule: "BLACKLIST_CHECK", triggered: true }],
         });
       }
 
       // Get active fraud rules
       const activeRules = await FraudRule.findAll({
         where: { isActive: true },
-        order: [['severity', 'DESC']]
+        order: [["severity", "DESC"]],
       });
 
       // Evaluate each fraud rule
@@ -70,7 +81,7 @@ class FraudService {
           location,
           deviceInfo,
           timestamp,
-          riskProfile
+          riskProfile,
         });
 
         if (ruleResult.triggered) {
@@ -80,7 +91,7 @@ class FraudService {
             type: rule.type,
             severity: rule.severity,
             impact: rule.scoreImpact,
-            details: ruleResult.details
+            details: ruleResult.details,
           });
           riskFactors.push(ruleResult.reason);
         }
@@ -90,7 +101,10 @@ class FraudService {
       riskScore = Math.min(100, riskScore);
 
       // Determine risk level and decision
-      const { riskLevel, decision } = this.calculateRiskLevelAndDecision(riskScore, rulesFired);
+      const { riskLevel, decision } = this.calculateRiskLevelAndDecision(
+        riskScore,
+        rulesFired,
+      );
 
       // Create fraud check record
       const fraudCheck = await this.createFraudCheck({
@@ -102,24 +116,34 @@ class FraudService {
         riskScore,
         riskLevel,
         decision,
-        reason: riskFactors.join('; '),
+        reason: riskFactors.join("; "),
         rulesFired,
-        metadata: { location, deviceInfo, method, evaluationTimestamp: new Date() }
+        metadata: {
+          location,
+          deviceInfo,
+          method,
+          evaluationTimestamp: new Date(),
+        },
       });
 
       // Create alerts for high-risk transactions
-      if (riskLevel === 'HIGH' || riskLevel === 'CRITICAL') {
+      if (riskLevel === "HIGH" || riskLevel === "CRITICAL") {
         await this.createFraudAlert(fraudCheck);
       }
 
       // Update customer risk profile
-      await this.updateCustomerProfile(customerId, amount, decision === 'BLOCK');
+      await this.updateCustomerProfile(
+        customerId,
+        amount,
+        decision === "BLOCK",
+      );
 
-      this.logger.info(`Fraud check completed: ${fraudCheck.checkId}, decision: ${decision}, risk: ${riskLevel}`);
+      this.logger.info(
+        `Fraud check completed: ${fraudCheck.checkId}, decision: ${decision}, risk: ${riskLevel}`,
+      );
       return fraudCheck;
-
     } catch (error) {
-      this.logger.error('Error performing fraud check:', error);
+      this.logger.error("Error performing fraud check:", error);
       throw error;
     }
   }
@@ -129,33 +153,50 @@ class FraudService {
    */
   async evaluateRule(rule, transactionData) {
     try {
-      const { customerId, merchantId, amount, currency, method, location, timestamp } = transactionData;
-      
+      const {
+        customerId,
+        merchantId,
+        amount,
+        currency,
+        method,
+        location,
+        timestamp,
+      } = transactionData;
+
       switch (rule.type) {
-        case 'VELOCITY':
-          return await this.evaluateVelocityRule(rule, customerId, amount, timestamp);
-        
-        case 'AMOUNT':
+        case "VELOCITY":
+          return await this.evaluateVelocityRule(
+            rule,
+            customerId,
+            amount,
+            timestamp,
+          );
+
+        case "AMOUNT":
           return await this.evaluateAmountRule(rule, amount, currency);
-        
-        case 'LOCATION':
+
+        case "LOCATION":
           return await this.evaluateLocationRule(rule, customerId, location);
-        
-        case 'PATTERN':
-          return await this.evaluatePatternRule(rule, customerId, transactionData);
-        
-        case 'TIME_WINDOW':
+
+        case "PATTERN":
+          return await this.evaluatePatternRule(
+            rule,
+            customerId,
+            transactionData,
+          );
+
+        case "TIME_WINDOW":
           return await this.evaluateTimeWindowRule(rule, timestamp);
-        
-        case 'BLACKLIST':
+
+        case "BLACKLIST":
           return await this.evaluateBlacklistRule(rule, customerId, merchantId);
-        
+
         default:
-          return { triggered: false, reason: '', details: {} };
+          return { triggered: false, reason: "", details: {} };
       }
     } catch (error) {
       this.logger.error(`Error evaluating rule ${rule.name}:`, error);
-      return { triggered: false, reason: '', details: {} };
+      return { triggered: false, reason: "", details: {} };
     }
   }
 
@@ -165,24 +206,30 @@ class FraudService {
   async evaluateVelocityRule(rule, customerId, amount, timestamp) {
     const conditions = rule.conditions;
     const timeWindow = conditions.timeWindowMinutes || 60;
-    const startTime = new Date(timestamp.getTime() - (timeWindow * 60 * 1000));
+    const startTime = new Date(timestamp.getTime() - timeWindow * 60 * 1000);
 
     // Count recent transactions
     const recentChecks = await FraudCheck.findAll({
       where: {
         customerId,
-        createdAt: { [Op.gte]: startTime }
-      }
+        createdAt: { [Op.gte]: startTime },
+      },
     });
 
     const transactionCount = recentChecks.length;
-    const totalAmount = recentChecks.reduce((sum, check) => sum + parseFloat(check.amount), 0);
+    const totalAmount = recentChecks.reduce(
+      (sum, check) => sum + parseFloat(check.amount),
+      0,
+    );
 
     let triggered = false;
-    let reason = '';
+    let reason = "";
 
     // Check transaction count velocity
-    if (conditions.maxTransactions && transactionCount >= conditions.maxTransactions) {
+    if (
+      conditions.maxTransactions &&
+      transactionCount >= conditions.maxTransactions
+    ) {
       triggered = true;
       reason += `Too many transactions: ${transactionCount} in ${timeWindow} minutes. `;
     }
@@ -196,7 +243,7 @@ class FraudService {
     return {
       triggered,
       reason: reason.trim(),
-      details: { transactionCount, totalAmount, timeWindow }
+      details: { transactionCount, totalAmount, timeWindow },
     };
   }
 
@@ -206,7 +253,7 @@ class FraudService {
   async evaluateAmountRule(rule, amount, currency) {
     const conditions = rule.conditions;
     let triggered = false;
-    let reason = '';
+    let reason = "";
 
     // Check minimum amount threshold
     if (conditions.minAmount && amount >= conditions.minAmount) {
@@ -223,7 +270,7 @@ class FraudService {
     return {
       triggered,
       reason: reason.trim(),
-      details: { amount, currency, thresholdChecked: conditions.minAmount }
+      details: { amount, currency, thresholdChecked: conditions.minAmount },
     };
   }
 
@@ -232,15 +279,18 @@ class FraudService {
    */
   async evaluateLocationRule(rule, customerId, location) {
     if (!location) {
-      return { triggered: false, reason: '', details: {} };
+      return { triggered: false, reason: "", details: {} };
     }
 
     const conditions = rule.conditions;
     let triggered = false;
-    let reason = '';
+    let reason = "";
 
     // Check high-risk countries/regions (mock implementation)
-    if (conditions.blockedCountries && conditions.blockedCountries.includes(location.country)) {
+    if (
+      conditions.blockedCountries &&
+      conditions.blockedCountries.includes(location.country)
+    ) {
       triggered = true;
       reason = `Transaction from blocked country: ${location.country}`;
     }
@@ -251,10 +301,10 @@ class FraudService {
         where: {
           customerId,
           createdAt: { [Op.gte]: new Date(Date.now() - 60 * 60 * 1000) }, // Last hour
-          metadata: { [Op.ne]: null }
+          metadata: { [Op.ne]: null },
         },
-        order: [['createdAt', 'DESC']],
-        limit: 5
+        order: [["createdAt", "DESC"]],
+        limit: 5,
       });
 
       // Simple location velocity check (would use proper geolocation in production)
@@ -270,7 +320,7 @@ class FraudService {
     return {
       triggered,
       reason: reason.trim(),
-      details: { location, checkedCountries: conditions.blockedCountries }
+      details: { location, checkedCountries: conditions.blockedCountries },
     };
   }
 
@@ -280,14 +330,14 @@ class FraudService {
   async evaluatePatternRule(rule, customerId, transactionData) {
     const conditions = rule.conditions;
     let triggered = false;
-    let reason = '';
+    let reason = "";
 
     // Check for unusual time patterns
     if (conditions.flagNightTimeTransactions) {
       const hour = transactionData.timestamp.getHours();
       if (hour >= 23 || hour <= 5) {
         triggered = true;
-        reason = 'Transaction during unusual hours (night time)';
+        reason = "Transaction during unusual hours (night time)";
       }
     }
 
@@ -297,8 +347,8 @@ class FraudService {
         where: {
           customerId,
           amount: transactionData.amount,
-          createdAt: { [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-        }
+          createdAt: { [Op.gte]: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+        },
       });
 
       if (recentSameAmounts >= 3) {
@@ -310,7 +360,7 @@ class FraudService {
     return {
       triggered,
       reason: reason.trim(),
-      details: { patternType: 'behavioral', conditions }
+      details: { patternType: "behavioral", conditions },
     };
   }
 
@@ -323,7 +373,7 @@ class FraudService {
     const dayOfWeek = timestamp.getDay();
 
     let triggered = false;
-    let reason = '';
+    let reason = "";
 
     // Check blocked hours
     if (conditions.blockedHours && conditions.blockedHours.includes(hour)) {
@@ -334,13 +384,13 @@ class FraudService {
     // Check blocked days
     if (conditions.blockedDays && conditions.blockedDays.includes(dayOfWeek)) {
       triggered = true;
-      reason += ` Transaction on blocked day: ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]}`;
+      reason += ` Transaction on blocked day: ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dayOfWeek]}`;
     }
 
     return {
       triggered,
       reason: reason.trim(),
-      details: { hour, dayOfWeek }
+      details: { hour, dayOfWeek },
     };
   }
 
@@ -350,12 +400,12 @@ class FraudService {
   async evaluateBlacklistRule(rule, customerId, merchantId) {
     const conditions = rule.conditions;
     let triggered = false;
-    let reason = '';
+    let reason = "";
 
     // Check customer blacklist
     if (conditions.checkCustomers) {
       const customerProfile = await CustomerRiskProfile.findOne({
-        where: { customerId, isBlacklisted: true }
+        where: { customerId, isBlacklisted: true },
       });
 
       if (customerProfile) {
@@ -377,7 +427,10 @@ class FraudService {
     return {
       triggered,
       reason: reason.trim(),
-      details: { checkedCustomer: !!conditions.checkCustomers, checkedMerchant: !!conditions.checkMerchants }
+      details: {
+        checkedCustomer: !!conditions.checkCustomers,
+        checkedMerchant: !!conditions.checkMerchants,
+      },
     };
   }
 
@@ -385,26 +438,28 @@ class FraudService {
    * Calculate risk level and decision based on score and rules
    */
   calculateRiskLevelAndDecision(riskScore, rulesFired) {
-    let riskLevel = 'LOW';
-    let decision = 'ALLOW';
+    let riskLevel = "LOW";
+    let decision = "ALLOW";
 
     // Check for critical rules first
-    const criticalRules = rulesFired.filter(rule => rule.severity === 'CRITICAL');
+    const criticalRules = rulesFired.filter(
+      (rule) => rule.severity === "CRITICAL",
+    );
     if (criticalRules.length > 0) {
-      riskLevel = 'CRITICAL';
-      decision = 'BLOCK';
+      riskLevel = "CRITICAL";
+      decision = "BLOCK";
     } else if (riskScore >= 80) {
-      riskLevel = 'CRITICAL';
-      decision = 'BLOCK';
+      riskLevel = "CRITICAL";
+      decision = "BLOCK";
     } else if (riskScore >= 60) {
-      riskLevel = 'HIGH';
-      decision = 'REVIEW';
+      riskLevel = "HIGH";
+      decision = "REVIEW";
     } else if (riskScore >= 40) {
-      riskLevel = 'MEDIUM';
-      decision = 'REVIEW';
+      riskLevel = "MEDIUM";
+      decision = "REVIEW";
     } else if (riskScore >= 20) {
-      riskLevel = 'MEDIUM';
-      decision = 'ALLOW';
+      riskLevel = "MEDIUM";
+      decision = "ALLOW";
     }
 
     return { riskLevel, decision };
@@ -417,7 +472,7 @@ class FraudService {
     try {
       return await FraudCheck.create(data);
     } catch (error) {
-      this.logger.error('Error creating fraud check:', error);
+      this.logger.error("Error creating fraud check:", error);
       throw error;
     }
   }
@@ -427,9 +482,9 @@ class FraudService {
    */
   async createFraudAlert(fraudCheck) {
     try {
-      let alertType = 'HIGH_RISK_TRANSACTION';
-      if (fraudCheck.riskLevel === 'CRITICAL') {
-        alertType = 'SUSPICIOUS_PATTERN';
+      let alertType = "HIGH_RISK_TRANSACTION";
+      if (fraudCheck.riskLevel === "CRITICAL") {
+        alertType = "SUSPICIOUS_PATTERN";
       }
 
       const alert = await FraudAlert.create({
@@ -439,13 +494,15 @@ class FraudService {
         paymentId: fraudCheck.paymentId,
         fraudCheckId: fraudCheck.checkId,
         title: `${fraudCheck.riskLevel} Risk Transaction Detected`,
-        description: `Transaction flagged with risk score ${fraudCheck.riskScore}. Reason: ${fraudCheck.reason}`
+        description: `Transaction flagged with risk score ${fraudCheck.riskScore}. Reason: ${fraudCheck.reason}`,
       });
 
-      this.logger.warn(`Fraud alert created: ${alert.alertId} for customer ${fraudCheck.customerId}`);
+      this.logger.warn(
+        `Fraud alert created: ${alert.alertId} for customer ${fraudCheck.customerId}`,
+      );
       return alert;
     } catch (error) {
-      this.logger.error('Error creating fraud alert:', error);
+      this.logger.error("Error creating fraud alert:", error);
       throw error;
     }
   }
@@ -456,10 +513,10 @@ class FraudService {
   async getCustomerRiskProfile(customerId) {
     try {
       return await CustomerRiskProfile.findOne({
-        where: { customerId }
+        where: { customerId },
       });
     } catch (error) {
-      this.logger.error('Error getting customer risk profile:', error);
+      this.logger.error("Error getting customer risk profile:", error);
       throw error;
     }
   }
@@ -472,13 +529,13 @@ class FraudService {
       const profile = await CustomerRiskProfile.create({
         customerId,
         baseRiskScore: 15, // New customers start with moderate risk
-        trustLevel: 'NEW'
+        trustLevel: "NEW",
       });
 
       this.logger.info(`Created risk profile for customer ${customerId}`);
       return profile;
     } catch (error) {
-      this.logger.error('Error creating customer risk profile:', error);
+      this.logger.error("Error creating customer risk profile:", error);
       throw error;
     }
   }
@@ -494,7 +551,8 @@ class FraudService {
       }
 
       profile.totalTransactions += 1;
-      profile.totalAmount = parseFloat(profile.totalAmount) + parseFloat(amount);
+      profile.totalAmount =
+        parseFloat(profile.totalAmount) + parseFloat(amount);
 
       if (isFraud) {
         profile.fraudIncidents += 1;
@@ -508,7 +566,7 @@ class FraudService {
       this.logger.info(`Updated risk profile for customer ${customerId}`);
       return profile;
     } catch (error) {
-      this.logger.error('Error updating customer profile:', error);
+      this.logger.error("Error updating customer profile:", error);
       throw error;
     }
   }
@@ -519,13 +577,10 @@ class FraudService {
   async getFraudCheck(checkId) {
     try {
       return await FraudCheck.findByPk(checkId, {
-        include: [
-          { model: FraudAlert },
-          { model: CustomerRiskProfile }
-        ]
+        include: [{ model: FraudAlert }, { model: CustomerRiskProfile }],
       });
     } catch (error) {
-      this.logger.error('Error getting fraud check:', error);
+      this.logger.error("Error getting fraud check:", error);
       throw error;
     }
   }
@@ -533,26 +588,28 @@ class FraudService {
   /**
    * Review fraud check (approve/reject)
    */
-  async reviewFraudCheck(checkId, reviewerId, decision, notes = '') {
+  async reviewFraudCheck(checkId, reviewerId, decision, notes = "") {
     try {
       const fraudCheck = await FraudCheck.findByPk(checkId);
       if (!fraudCheck) {
-        throw new Error('Fraud check not found');
+        throw new Error("Fraud check not found");
       }
 
-      if (decision === 'APPROVED') {
+      if (decision === "APPROVED") {
         await fraudCheck.approve(reviewerId, notes);
       } else {
         await fraudCheck.reject(reviewerId, notes);
-        
+
         // Update customer risk if rejected
         await this.updateCustomerProfile(fraudCheck.customerId, 0, true);
       }
 
-      this.logger.info(`Fraud check ${checkId} reviewed by ${reviewerId}: ${decision}`);
+      this.logger.info(
+        `Fraud check ${checkId} reviewed by ${reviewerId}: ${decision}`,
+      );
       return fraudCheck;
     } catch (error) {
-      this.logger.error('Error reviewing fraud check:', error);
+      this.logger.error("Error reviewing fraud check:", error);
       throw error;
     }
   }
@@ -562,8 +619,15 @@ class FraudService {
    */
   async getFraudAlerts(filters = {}) {
     try {
-      const { status, severity, type, customerId, page = 0, size = 20 } = filters;
-      
+      const {
+        status,
+        severity,
+        type,
+        customerId,
+        page = 0,
+        size = 20,
+      } = filters;
+
       const where = {};
       if (status) where.status = status;
       if (severity) where.severity = severity;
@@ -573,9 +637,9 @@ class FraudService {
       const { rows: alerts, count: total } = await FraudAlert.findAndCountAll({
         where,
         include: [{ model: FraudCheck }],
-        order: [['createdAt', 'DESC']],
+        order: [["createdAt", "DESC"]],
         limit: size,
-        offset: page * size
+        offset: page * size,
       });
 
       return {
@@ -583,10 +647,10 @@ class FraudService {
         totalElements: total,
         totalPages: Math.ceil(total / size),
         size,
-        number: page
+        number: page,
       };
     } catch (error) {
-      this.logger.error('Error getting fraud alerts:', error);
+      this.logger.error("Error getting fraud alerts:", error);
       throw error;
     }
   }
@@ -599,15 +663,27 @@ class FraudService {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
 
-      const [totalChecks, blockedTransactions, reviewRequests, falsePositives] = await Promise.all([
-        FraudCheck.count({ where: { createdAt: { [Op.gte]: startDate } } }),
-        FraudCheck.count({ where: { decision: 'BLOCK', createdAt: { [Op.gte]: startDate } } }),
-        FraudCheck.count({ where: { decision: 'REVIEW', createdAt: { [Op.gte]: startDate } } }),
-        FraudAlert.count({ where: { status: 'FALSE_POSITIVE', createdAt: { [Op.gte]: startDate } } })
-      ]);
+      const [totalChecks, blockedTransactions, reviewRequests, falsePositives] =
+        await Promise.all([
+          FraudCheck.count({ where: { createdAt: { [Op.gte]: startDate } } }),
+          FraudCheck.count({
+            where: { decision: "BLOCK", createdAt: { [Op.gte]: startDate } },
+          }),
+          FraudCheck.count({
+            where: { decision: "REVIEW", createdAt: { [Op.gte]: startDate } },
+          }),
+          FraudAlert.count({
+            where: {
+              status: "FALSE_POSITIVE",
+              createdAt: { [Op.gte]: startDate },
+            },
+          }),
+        ]);
 
-      const blockRate = totalChecks > 0 ? (blockedTransactions / totalChecks) * 100 : 0;
-      const reviewRate = totalChecks > 0 ? (reviewRequests / totalChecks) * 100 : 0;
+      const blockRate =
+        totalChecks > 0 ? (blockedTransactions / totalChecks) * 100 : 0;
+      const reviewRate =
+        totalChecks > 0 ? (reviewRequests / totalChecks) * 100 : 0;
 
       return {
         period: `${days} days`,
@@ -618,10 +694,17 @@ class FraudService {
         blockRate: parseFloat(blockRate.toFixed(2)),
         reviewRate: parseFloat(reviewRate.toFixed(2)),
         falsePositives,
-        accuracy: totalChecks > 0 ? parseFloat(((totalChecks - falsePositives) / totalChecks * 100).toFixed(2)) : 100
+        accuracy:
+          totalChecks > 0
+            ? parseFloat(
+                (((totalChecks - falsePositives) / totalChecks) * 100).toFixed(
+                  2,
+                ),
+              )
+            : 100,
       };
     } catch (error) {
-      this.logger.error('Error getting fraud statistics:', error);
+      this.logger.error("Error getting fraud statistics:", error);
       throw error;
     }
   }
@@ -629,7 +712,7 @@ class FraudService {
   /**
    * Blacklist/whitelist customer
    */
-  async updateCustomerBlacklist(customerId, isBlacklisted, reason = '') {
+  async updateCustomerBlacklist(customerId, isBlacklisted, reason = "") {
     try {
       let profile = await this.getCustomerRiskProfile(customerId);
       if (!profile) {
@@ -646,7 +729,7 @@ class FraudService {
 
       return profile;
     } catch (error) {
-      this.logger.error('Error updating customer blacklist:', error);
+      this.logger.error("Error updating customer blacklist:", error);
       throw error;
     }
   }
