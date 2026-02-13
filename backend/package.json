@@ -1,0 +1,57 @@
+{
+  "name": "payment-platform-backend",
+  "version": "1.0.0",
+  "description": "Digital Payment Platform - Microservices Backend",
+  "scripts": {
+    "start": "concurrently \"npm run start:customer\" \"npm run start:merchant\" \"npm run start:payment\" \"npm run start:qr\" \"npm run start:bank\" \"npm run start:transaction\" \"npm run start:notification\" \"npm run start:fraud\" \"npm run start:loyalty\" \"npm run start:cashback\"",
+    "start:customer": "cd customer-service && npm start",
+    "start:merchant": "cd merchant-service && npm start",
+    "start:payment": "cd payment-service && npm start",
+    "start:qr": "cd qr-service && npm start",
+    "start:bank": "cd bank-integration-service && npm start",
+    "start:transaction": "cd transaction-service && npm start",
+    "start:notification": "cd notification-service && npm start",
+    "start:fraud": "cd fraud-service && npm start",
+    "start:loyalty": "cd loyalty-service && npm start",
+    "start:cashback": "cd cashback-service && npm start",
+    "install:all": "npm install && npm run install:services",
+    "install:services": "concurrently \"cd customer-service && npm install\" \"cd merchant-service && npm install\" \"cd payment-service && npm install\" \"cd qr-service && npm install\" \"cd bank-integration-service && npm install\" \"cd transaction-service && npm install\" \"cd notification-service && npm install\" \"cd fraud-service && npm install\" \"cd loyalty-service && npm install\" \"cd cashback-service && npm install\"",
+    "test": "jest",
+    "test:all": "concurrently \"cd customer-service && npm test\" \"cd merchant-service && npm test\" \"cd payment-service && npm test\" \"cd qr-service && npm test\" \"cd bank-integration-service && npm test\" \"cd transaction-service && npm test\" \"cd notification-service && npm test\" \"cd fraud-service && npm test\" \"cd loyalty-service && npm test\" \"cd cashback-service && npm test\"",
+    "dev": "concurrently \"npm run dev:customer\" \"npm run dev:merchant\" \"npm run dev:payment\" \"npm run dev:qr\" \"npm run dev:bank\" \"npm run dev:transaction\" \"npm run dev:notification\" \"npm run dev:fraud\" \"npm run dev:loyalty\" \"npm run dev:cashback\"",
+    "dev:customer": "cd customer-service && npm run dev",
+    "dev:merchant": "cd merchant-service && npm run dev",
+    "dev:payment": "cd payment-service && npm run dev",
+    "dev:qr": "cd qr-service && npm run dev",
+    "dev:bank": "cd bank-integration-service && npm run dev",
+    "dev:transaction": "cd transaction-service && npm run dev",
+    "dev:notification": "cd notification-service && npm run dev",
+    "dev:fraud": "cd fraud-service && npm run dev",
+    "dev:loyalty": "cd loyalty-service && npm run dev",
+    "dev:cashback": "cd cashback-service && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.3",
+    "supertest": "^6.3.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "payment-platform-monorepo"
+  },
+  "keywords": [
+    "payment",
+    "fintech",
+    "microservices",
+    "nodejs",
+    "express",
+    "digital-wallet"
+  ],
+  "author": "Payment Platform Team",
+  "license": "MIT"
+}

@@ -1,0 +1,49 @@
+{
+  "name": "qr-service",
+  "version": "1.0.0",
+  "description": "QR code generation and management microservice",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
+  },
+  "keywords": [
+    "qr",
+    "microservice",
+    "express",
+    "sequelize"
+  ],
+  "author": "Payment Platform Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "sequelize": "^6.35.2",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0",
+    "crypto": "^1.0.1",
+    "qrcode": "^1.5.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4",
+    "eslint": "^8.44.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/app.js",
+      "!src/models/index.js"
+    ],
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
+  }
+}

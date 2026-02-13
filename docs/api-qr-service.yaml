@@ -1,0 +1,666 @@
+# QR Service OpenAPI Specification
+
+openapi: 3.0.3
+info:
+  title: QR Service API
+  description: QR code generation, scanning, and management service
+  version: 1.0.0
+  contact:
+    name: QR Service Team
+    email: qr-service@payment-platform.com
+
+servers:
+  - url: http://localhost:8084/api/v1
+    description: Local development server
+  - url: https://api-dev.payment-platform.com/qr/v1
+    description: Development environment
+  - url: https://api.payment-platform.com/qr/v1
+    description: Production environment
+
+tags:
+  - name: qr-codes
+    description: QR code generation and management
+  - name: qr-scanning
+    description: QR code scanning and parsing
+
+paths:
+  /qr/generate:
+    post:
+      tags:
+        - qr-codes
+      summary: Generate QR code
+      description: Generate a new QR code for payment request
+      operationId: generateQrCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QrGenerationRequest"
+            examples:
+              merchant_qr:
+                summary: Merchant payment QR
+                value:
+                  merchantId: 456
+                  amount: 25.50
+                  currency: "USD"
+                  description: "Coffee and pastry"
+                  expiresInMinutes: 30
+              customer_qr:
+                summary: Customer payment request QR
+                value:
+                  customerId: 12345
+                  amount: 150.00
+                  currency: "USD"
+                  description: "Dinner split"
+                  expiresInMinutes: 15
+      responses:
+        "201":
+          description: QR code generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QrCodeResponse"
+        "400":
+          description: Invalid QR generation request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Merchant or customer not found
+
+  /qr/generate/bulk:
+    post:
+      tags:
+        - qr-codes
+      summary: Generate multiple QR codes
+      description: Generate multiple QR codes for merchants (batch operation)
+      operationId: generateBulkQrCodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkQrGenerationRequest"
+      responses:
+        "201":
+          description: QR codes generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkQrCodeResponse"
+
+  /qr/{qrId}:
+    get:
+      tags:
+        - qr-codes
+      summary: Get QR code details
+      description: Retrieve QR code information and status
+      operationId: getQrCode
+      parameters:
+        - name: qrId
+          in: path
+          description: QR code ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 789
+      responses:
+        "200":
+          description: QR code details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QrCodeResponse"
+        "404":
+          description: QR code not found
+
+    patch:
+      tags:
+        - qr-codes
+      summary: Update QR code status
+      description: Update QR code status (expire, activate, deactivate)
+      operationId: updateQrCodeStatus
+      parameters:
+        - name: qrId
+          in: path
+          description: QR code ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 789
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QrStatusUpdateRequest"
+      responses:
+        "200":
+          description: QR code status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QrCodeResponse"
+
+  /qr/{qrId}/image:
+    get:
+      tags:
+        - qr-codes
+      summary: Download QR code image
+      description: Download QR code as PNG image
+      operationId: downloadQrImage
+      parameters:
+        - name: qrId
+          in: path
+          description: QR code ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 789
+        - name: size
+          in: query
+          description: Image size in pixels
+          required: false
+          schema:
+            type: integer
+            enum: [128, 256, 512]
+            default: 256
+            example: 256
+        - name: format
+          in: query
+          description: Image format
+          required: false
+          schema:
+            type: string
+            enum: [PNG, SVG]
+            default: PNG
+            example: PNG
+      responses:
+        "200":
+          description: QR code image
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/svg+xml:
+              schema:
+                type: string
+        "404":
+          description: QR code not found
+        "410":
+          description: QR code expired
+
+  /qr/scan:
+    post:
+      tags:
+        - qr-scanning
+      summary: Parse QR code data
+      description: Parse and validate scanned QR code data
+      operationId: parseQrCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QrScanRequest"
+            examples:
+              valid_qr_scan:
+                summary: Valid QR code scan
+                value:
+                  qrData: "PAY_MERCHANT_456_AMOUNT_25.50_EXP_1708086600"
+                  scannerCustomerId: 12345
+      responses:
+        "200":
+          description: QR code parsed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QrParseResponse"
+        "400":
+          description: Invalid QR code format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "410":
+          description: QR code expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /qr/validate:
+    post:
+      tags:
+        - qr-scanning
+      summary: Validate QR code
+      description: Validate QR code without parsing (quick check)
+      operationId: validateQrCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QrValidationRequest"
+      responses:
+        "200":
+          description: QR code validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QrValidationResponse"
+
+  /qr/merchant/{merchantId}:
+    get:
+      tags:
+        - qr-codes
+      summary: Get merchant QR codes
+      description: Get all QR codes for a specific merchant
+      operationId: getMerchantQrCodes
+      parameters:
+        - name: merchantId
+          in: path
+          description: Merchant ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 456
+        - name: status
+          in: query
+          description: Filter by QR status
+          required: false
+          schema:
+            type: string
+            enum: [ACTIVE, EXPIRED, USED, CANCELLED]
+            example: ACTIVE
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Merchant QR codes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QrCodeListResponse"
+
+  /health:
+    get:
+      tags:
+        - health
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+
+components:
+  schemas:
+    QrGenerationRequest:
+      type: object
+      required:
+        - amount
+        - currency
+        - expiresInMinutes
+      properties:
+        merchantId:
+          type: integer
+          format: int64
+          example: 456
+          description: Merchant ID (for merchant QR codes)
+        customerId:
+          type: integer
+          format: int64
+          example: 12345
+          description: Customer ID (for customer payment request QR codes)
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          example: 25.50
+          description: Payment amount
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          example: "USD"
+          description: ISO currency code
+        description:
+          type: string
+          maxLength: 255
+          example: "Coffee and pastry"
+          description: Payment description
+        expiresInMinutes:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          example: 30
+          description: QR code expiration time in minutes
+
+    BulkQrGenerationRequest:
+      type: object
+      required:
+        - requests
+      properties:
+        requests:
+          type: array
+          items:
+            $ref: "#/components/schemas/QrGenerationRequest"
+          maxItems: 100
+          description: List of QR generation requests (max 100)
+
+    QrScanRequest:
+      type: object
+      required:
+        - qrData
+        - scannerCustomerId
+      properties:
+        qrData:
+          type: string
+          example: "PAY_MERCHANT_456_AMOUNT_25.50_EXP_1708086600"
+          description: Raw QR code data from scanner
+        scannerCustomerId:
+          type: integer
+          format: int64
+          example: 12345
+          description: ID of customer scanning the QR code
+
+    QrValidationRequest:
+      type: object
+      required:
+        - qrData
+      properties:
+        qrData:
+          type: string
+          example: "PAY_MERCHANT_456_AMOUNT_25.50_EXP_1708086600"
+
+    QrStatusUpdateRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [EXPIRED, CANCELLED]
+          example: "CANCELLED"
+        reason:
+          type: string
+          maxLength: 255
+          example: "Merchant request"
+
+    QrCodeResponse:
+      type: object
+      properties:
+        qrId:
+          type: integer
+          format: int64
+          example: 789
+        qrData:
+          type: string
+          example: "PAY_MERCHANT_456_AMOUNT_25.50_EXP_1708086600"
+          description: Encoded QR data string
+        merchantId:
+          type: integer
+          format: int64
+          example: 456
+        customerId:
+          type: integer
+          format: int64
+          example: 12345
+        amount:
+          type: number
+          format: decimal
+          example: 25.50
+        currency:
+          type: string
+          example: "USD"
+        description:
+          type: string
+          example: "Coffee and pastry"
+        status:
+          type: string
+          enum: [ACTIVE, EXPIRED, USED, CANCELLED]
+          example: "ACTIVE"
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T11:00:00Z"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T10:30:00Z"
+        usedAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T10:45:00Z"
+          description: Timestamp when QR was used (if applicable)
+        downloadUrl:
+          type: string
+          format: uri
+          example: "/api/v1/qr/789/image?size=256&format=PNG"
+          description: URL to download QR code image
+
+    BulkQrCodeResponse:
+      type: object
+      properties:
+        successful:
+          type: array
+          items:
+            $ref: "#/components/schemas/QrCodeResponse"
+          description: Successfully generated QR codes
+        failed:
+          type: array
+          items:
+            $ref: "#/components/schemas/QrGenerationError"
+          description: Failed QR generation requests
+        summary:
+          type: object
+          properties:
+            totalRequests:
+              type: integer
+              example: 10
+            successfulCount:
+              type: integer
+              example: 8
+            failedCount:
+              type: integer
+              example: 2
+
+    QrGenerationError:
+      type: object
+      properties:
+        requestIndex:
+          type: integer
+          example: 5
+          description: Index of failed request in the batch
+        error:
+          type: string
+          example: "MERCHANT_NOT_FOUND"
+        message:
+          type: string
+          example: "Merchant ID 999 not found"
+
+    QrParseResponse:
+      type: object
+      properties:
+        qrId:
+          type: integer
+          format: int64
+          example: 789
+        valid:
+          type: boolean
+          example: true
+        merchantId:
+          type: integer
+          format: int64
+          example: 456
+        merchantName:
+          type: string
+          example: "Coffee Shop"
+        customerId:
+          type: integer
+          format: int64
+          example: 12345
+        customerName:
+          type: string
+          example: "John Doe"
+        amount:
+          type: number
+          format: decimal
+          example: 25.50
+        currency:
+          type: string
+          example: "USD"
+        description:
+          type: string
+          example: "Coffee and pastry"
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T11:00:00Z"
+        secondsToExpiry:
+          type: integer
+          example: 1800
+          description: Seconds until QR code expires
+        paymentData:
+          type: object
+          properties:
+            recipientId:
+              type: integer
+              format: int64
+              example: 456
+            recipientType:
+              type: string
+              enum: [CUSTOMER, MERCHANT]
+              example: "MERCHANT"
+            amount:
+              type: number
+              format: decimal
+              example: 25.50
+            currency:
+              type: string
+              example: "USD"
+
+    QrValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          example: true
+        format:
+          type: string
+          example: "PAYMENT_PLATFORM_V1"
+        expired:
+          type: boolean
+          example: false
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T11:00:00Z"
+        errors:
+          type: array
+          items:
+            type: string
+          example: []
+          description: Validation error messages
+
+    QrCodeListResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/QrCodeSummary"
+        totalElements:
+          type: integer
+          format: int64
+          example: 25
+        totalPages:
+          type: integer
+          example: 2
+        size:
+          type: integer
+          example: 20
+        number:
+          type: integer
+          example: 0
+
+    QrCodeSummary:
+      type: object
+      properties:
+        qrId:
+          type: integer
+          format: int64
+          example: 789
+        amount:
+          type: number
+          format: decimal
+          example: 25.50
+        currency:
+          type: string
+          example: "USD"
+        description:
+          type: string
+          example: "Coffee and pastry"
+        status:
+          type: string
+          enum: [ACTIVE, EXPIRED, USED, CANCELLED]
+          example: "ACTIVE"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T10:30:00Z"
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T11:00:00Z"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          example: "QR_EXPIRED"
+        message:
+          type: string
+          example: "QR code has expired"
+        details:
+          type: array
+          items:
+            type: string
+          example: ["QR code expired at 2026-02-13T11:00:00Z"]
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-02-13T11:30:00Z"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []

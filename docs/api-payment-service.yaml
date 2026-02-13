@@ -1,0 +1,647 @@
+# Payment Service OpenAPI Specification
+
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  description: Core payment processing service for QR and manual payments
+  version: 1.0.0
+  contact:
+    name: Payment Service Team
+    email: payment-service@payment-platform.com
+
+servers:
+  - url: http://localhost:8083/api/v1
+    description: Local development server
+  - url: https://api-dev.payment-platform.com/payment/v1
+    description: Development environment
+  - url: https://api.payment-platform.com/payment/v1
+    description: Production environment
+
+tags:
+  - name: payments
+    description: Payment processing operations
+  - name: qr-payments
+    description: QR code-based payments
+
+paths:
+  /payments:
+    post:
+      tags:
+        - payments
+      summary: Initiate payment
+      description: Initiate a new payment (QR or manual)
+      operationId: initiatePayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+            examples:
+              manual_payment:
+                summary: Manual payment to customer
+                value:
+                  senderId: 12345
+                  recipientId: 67890
+                  recipientType: "CUSTOMER"
+                  amount: 150.00
+                  currency: "USD"
+                  method: "MANUAL"
+                  description: "Dinner payment"
+              qr_payment:
+                summary: QR code payment to merchant
+                value:
+                  senderId: 12345
+                  qrCodeId: 789
+                  amount: 25.50
+                  currency: "USD"
+                  method: "QR_CODE"
+                  loyaltyRedemption:
+                    redeemPoints: true
+                    pointsToRedeem: 250
+      responses:
+        "201":
+          description: Payment initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: Invalid payment request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "402":
+          description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Payment blocked by fraud detection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FraudBlockResponse"
+
+    get:
+      tags:
+        - payments
+      summary: Get customer payments
+      description: Retrieve payment history for a customer
+      operationId: getPayments
+      parameters:
+        - name: customerId
+          in: query
+          description: Customer ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 12345
+        - name: status
+          in: query
+          description: Filter by payment status
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, BLOCKED]
+            example: "COMPLETED"
+        - name: fromDate
+          in: query
+          description: Start date for filtering
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-01-01"
+        - name: toDate
+          in: query
+          description: End date for filtering
+          required: false
+          schema:
+            type: string
+            format: date
+            example: "2026-02-13"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        "200":
+          description: Payment history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentHistoryResponse"
+
+  /payments/{paymentId}:
+    get:
+      tags:
+        - payments
+      summary: Get payment details
+      description: Retrieve detailed information about a specific payment
+      operationId: getPayment
+      parameters:
+        - name: paymentId
+          in: path
+          description: Payment ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 67890
+      responses:
+        "200":
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "404":
+          description: Payment not found
+
+    patch:
+      tags:
+        - payments
+      summary: Update payment status
+      description: Update payment status (admin only)
+      operationId: updatePaymentStatus
+      parameters:
+        - name: paymentId
+          in: path
+          description: Payment ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 67890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentStatusUpdateRequest"
+      responses:
+        "200":
+          description: Payment status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "403":
+          description: Insufficient permissions
+        "404":
+          description: Payment not found
+
+  /payments/{paymentId}/cancel:
+    post:
+      tags:
+        - payments
+      summary: Cancel payment
+      description: Cancel a pending or processing payment
+      operationId: cancelPayment
+      parameters:
+        - name: paymentId
+          in: path
+          description: Payment ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 67890
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentCancelRequest"
+      responses:
+        "200":
+          description: Payment cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: Payment cannot be cancelled
+        "404":
+          description: Payment not found
+
+  /payments/qr:
+    post:
+      tags:
+        - qr-payments
+      summary: Process QR payment
+      description: Process payment using QR code scan
+      operationId: processQrPayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QrPaymentRequest"
+      responses:
+        "201":
+          description: QR payment processed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: Invalid QR code or payment data
+        "410":
+          description: QR code expired
+
+  /payments/retry/{paymentId}:
+    post:
+      tags:
+        - payments
+      summary: Retry failed payment
+      description: Retry a failed payment transaction
+      operationId: retryPayment
+      parameters:
+        - name: paymentId
+          in: path
+          description: Payment ID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            example: 67890
+      responses:
+        "200":
+          description: Payment retry initiated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: Payment cannot be retried
+        "404":
+          description: Payment not found
+
+  /health:
+    get:
+      tags:
+        - health
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "UP"
+
+components:
+  schemas:
+    PaymentRequest:
+      type: object
+      required:
+        - senderId
+        - amount
+        - currency
+        - method
+      properties:
+        senderId:
+          type: integer
+          format: int64
+          example: 12345
+          description: Customer ID initiating payment
+        recipientId:
+          type: integer
+          format: int64
+          example: 67890
+          description: Recipient customer/merchant ID (for manual payments)
+        recipientType:
+          type: string
+          enum: [CUSTOMER, MERCHANT]
+          example: "MERCHANT"
+          description: Type of recipient
+        qrCodeId:
+          type: integer
+          format: int64
+          example: 789
+          description: QR code ID (for QR payments)
+        amount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          example: 150.00
+          description: Payment amount
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          example: "USD"
+          description: ISO currency code
+        method:
+          type: string
+          enum: [QR_CODE, MANUAL, BANK_TRANSFER]
+          example: "MANUAL"
+        description:
+          type: string
+          maxLength: 255
+          example: "Dinner payment"
+          description: Optional payment description
+        loyaltyRedemption:
+          $ref: "#/components/schemas/LoyaltyRedemption"
+
+    QrPaymentRequest:
+      type: object
+      required:
+        - senderId
+        - qrData
+        - amount
+      properties:
+        senderId:
+          type: integer
+          format: int64
+          example: 12345
+        qrData:
+          type: string
+          example: "PAY_MERCHANT_456_AMOUNT_25.50_EXP_1708086600"
+          description: Scanned QR code data
+        amount:
+          type: number
+          format: decimal
+          example: 25.50
+        loyaltyRedemption:
+          $ref: "#/components/schemas/LoyaltyRedemption"
+
+    LoyaltyRedemption:
+      type: object
+      properties:
+        redeemPoints:
+          type: boolean
+          example: true
+          description: Whether to redeem loyalty points
+        pointsToRedeem:
+          type: integer
+          minimum: 100
+          example: 250
+          description: Number of points to redeem (100 points = $1)
+
+    PaymentStatusUpdateRequest:
+      type: object
+      required:
+        - status
+        - reason
+      properties:
+        status:
+          type: string
+          enum: [APPROVED, REJECTED, CANCELLED]
+          example: "APPROVED"
+        reason:
+          type: string
+          maxLength: 500
+          example: "Manual review completed - transaction approved"
+
+    PaymentCancelRequest:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          maxLength: 255
+          example: "Customer requested cancellation"
+
+    PaymentResponse:
+      type: object
+      properties:
+        paymentId:
+          type: integer
+          format: int64
+          example: 67890
+        senderId:
+          type: integer
+          format: int64
+          example: 12345
+        senderName:
+          type: string
+          example: "John Doe"
+        recipientId:
+          type: integer
+          format: int64
+          example: 54321
+        recipientName:
+          type: string
+          example: "Coffee Shop"
+        recipientType:
+          type: string
+          enum: [CUSTOMER, MERCHANT]
+          example: "MERCHANT"
+        amount:
+          type: number
+          format: decimal
+          example: 150.00
+        currency:
+          type: string
+          example: "USD"
+        method:
+          type: string
+          enum: [QR_CODE, MANUAL, BANK_TRANSFER]
+          example: "MANUAL"
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, BLOCKED]
+          example: "COMPLETED"
+        description:
+          type: string
+          example: "Dinner payment"
+        bankTransactionId:
+          type: string
+          example: "BNK_987654321"
+          description: Bank reference number
+        fraudAnalysis:
+          $ref: "#/components/schemas/FraudAnalysisResult"
+        loyaltyTransaction:
+          $ref: "#/components/schemas/LoyaltyTransactionResult"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T10:30:00Z"
+        completedAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T10:30:45Z"
+
+    FraudAnalysisResult:
+      type: object
+      properties:
+        riskScore:
+          type: integer
+          example: 15
+          description: Calculated risk score (0-100)
+        status:
+          type: string
+          enum: [CLEAR, SUSPICIOUS, BLOCKED, UNDER_REVIEW]
+          example: "CLEAR"
+        rulesApplied:
+          type: array
+          items:
+            type: string
+          example: ["amount_check", "frequency_check", "account_age"]
+        reviewRequired:
+          type: boolean
+          example: false
+
+    LoyaltyTransactionResult:
+      type: object
+      properties:
+        pointsEarned:
+          type: integer
+          example: 150
+        pointsRedeemed:
+          type: integer
+          example: 0
+        tierMultiplier:
+          type: number
+          format: double
+          example: 1.0
+        newBalance:
+          type: integer
+          example: 2750
+        tierUpgrade:
+          type: boolean
+          example: false
+        newTier:
+          type: string
+          enum: [SILVER, GOLD, PLATINUM]
+          example: "SILVER"
+
+    PaymentHistoryResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/PaymentSummary"
+        totalElements:
+          type: integer
+          format: int64
+          example: 75
+        totalPages:
+          type: integer
+          example: 4
+        size:
+          type: integer
+          example: 20
+        number:
+          type: integer
+          example: 0
+
+    PaymentSummary:
+      type: object
+      properties:
+        paymentId:
+          type: integer
+          format: int64
+          example: 67890
+        recipientName:
+          type: string
+          example: "Coffee Shop"
+        recipientType:
+          type: string
+          enum: [CUSTOMER, MERCHANT]
+          example: "MERCHANT"
+        amount:
+          type: number
+          format: decimal
+          example: 25.50
+        currency:
+          type: string
+          example: "USD"
+        method:
+          type: string
+          enum: [QR_CODE, MANUAL, BANK_TRANSFER]
+          example: "QR_CODE"
+        status:
+          type: string
+          enum: [PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, BLOCKED]
+          example: "COMPLETED"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-02-13T10:30:00Z"
+
+    FraudBlockResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "FRAUD_DETECTED"
+        message:
+          type: string
+          example: "Payment blocked due to suspicious activity"
+        riskScore:
+          type: integer
+          example: 85
+        blockReason:
+          type: string
+          example: "High transaction frequency and unusual amount"
+        reviewCaseId:
+          type: string
+          example: "FRD-2026-001234"
+          description: Fraud case ID for tracking
+        contactInstructions:
+          type: string
+          example: "Contact support at fraud@payment-platform.com with case ID"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-02-13T10:30:00Z"
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+        - timestamp
+      properties:
+        error:
+          type: string
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          example: "Invalid payment data"
+        details:
+          type: array
+          items:
+            type: string
+          example: ["Amount must be positive", "Currency is required"]
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-02-13T10:30:00Z"
+        path:
+          type: string
+          example: "/api/v1/payments"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
