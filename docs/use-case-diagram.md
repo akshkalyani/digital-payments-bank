@@ -136,6 +136,24 @@ flowchart TB
 
 ## Use Case Descriptions
 
+### Summary
+
+#### Customer
+- The Customer registers, manages their account, and performs payments using QR or manual methods while tracking transactions and loyalty benefits. They can rate merchants, redeem points, and interact with QR-based payment features seamlessly.
+
+#### Merchant
+- The Merchant generates and accepts QR-based payments, manages their business profile, and monitors payment history. They can also view customer ratings and feedback to improve their services.
+
+#### Authorized Personnel
+- Authorized Personnel review and process merchant onboarding applications to ensure compliance and approval standards are met. They verify submitted information and decide whether to approve or reject applications.
+
+#### System Administrator
+- The System Administrator configures and maintains system rules such as cashback programs and fraud detection parameters. They ensure system policies are updated, tested, and properly deployed.
+
+#### Fraud Detection System
+- The Fraud Detection System continuously monitors transactions in real time to detect suspicious activity. It applies predefined rules to calculate fraud scores and generate alerts when necessary.
+
+
 ### Customer Use Cases
 
 **UC1: Register Account**
