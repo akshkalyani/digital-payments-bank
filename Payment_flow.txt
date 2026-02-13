@@ -1,0 +1,37 @@
+flowchart TD
+
+%% CLIENT LAYER
+A[User Mobile App] --> B[API Gateway]
+
+%% PLATFORM CORE SERVICES
+B --> C[Authentication Service]
+C --> D[Transaction Orchestrator]
+
+D --> E[User Service]
+D --> F[Limits Service]
+D --> G[Fraud Detection Service]
+
+G -->|Risk OK| H[Ledger Pre-Check Service]
+G -->|Risk High| X[Transaction Blocked]
+
+H --> I[PSP Bank API]
+
+%% EXTERNAL BANKING LAYER
+I --> J[PSP Bank Core System]
+J --> K[NPCI UPI Switch]
+K --> L[Beneficiary Bank Core]
+
+%% RESPONSE FLOW
+L --> K
+K --> J
+J --> M[Platform Callback Handler]
+
+%% POST PROCESSING
+M --> N[Ledger Finalization Service]
+N --> O[Settlement Service]
+N --> P[Audit Logging Service]
+N --> Q[Notification Service]
+N --> R[Analytics Event Publisher]
+
+%% FINAL STATUS
+R --> S[Transaction Completed]
